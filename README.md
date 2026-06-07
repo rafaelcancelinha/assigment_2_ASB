@@ -161,6 +161,14 @@ BiocManager::install(c("ANCOMBC", "mia", "TreeSummarizedExperiment"))
 
 ---
 
+## Author Contributions
+
+* **Henrique Silva** – [GitHub Profile](https://github.com/henriquemsilvapb) 
+
+* **Maria Barbosa** – [GitHub Profile]()
+  
+* **Marta Neves** – [GitHub Profile]()
+
 ## References
 
 - Ramakodi & Palanivishwanath (2024) — original study replicated
