@@ -1,154 +1,171 @@
-Plastisphere Microbiome Analysis
+# Plastisphere Microbiome Analysis
 
-Assignment 2 | Bioinformatics | Escola Superior de Tecnologia do Barreiro, Polytechnic Institute of Setúbal
+**Assignment 2 | Bioinformatics | Escola Superior de Tecnologia do Barreiro, Politécnico de Setúbal**
 
-A reproducible bioinformatics workflow for replicating a published plastisphere microbiome study using 16S rRNA amplicon sequencing data from two public SRA projects, following the methodology described in Ramakodi & Palanivishwanath (2024).
-Datasets
-Dataset	Location	Polymers	Reference
-PRJNA941828	Svanemøllen Harbor, Denmark (L1)	PE, PS + control	Dodhia et al. (2023)
-PRJNA558771	Ancona, Italy (L2) + Naples, Italy (L3)	PE, PP + control	Basili et al. (2020)
-Repository Structure
-Code
+Replication of a published plastisphere microbiome study using 16S rRNA amplicon sequencing data from two public SRA datasets, following the methodology of Ramakodi & Palanivishwanath (2024).
 
+---
+
+## Datasets
+
+| Dataset | Location | Polymers | Reference |
+|---|---|---|---|
+| PRJNA941828 | Svanemøllen Harbor, Denmark (L1) | PE, PS + control | Dodhia et al. (2023) |
+| PRJNA558771 | Ancona, Italy (L2) + Naples, Italy (L3) | PE, PP + control | Basili et al. (2020) |
+
+---
+
+## Repository Structure
+
+```
 plastisphere-analysis/
-
-├── NCBI.sh                      # Download FASTQs from SRA
-├── run_pipeline.sh              # Master pipeline script
-├── cleaning.R                   # Step 4: filter + merge datasets
-├── downstream.R                 # Step 5: beta diversity, dbRDA, PERMANOVA (phyloseq)
-├── validation_analysis.R        # Step 8: validation dbRDA
-├── 01_pcoa.R                    # PCoA – Bray-Curtis (vegan)
-├── 02_dbrda.R                   # dbRDA plot (vegan)
-├── 05_phylum_barplot.R          # Community composition – top 15 phyla
-├── 06_heatmap_L1_L3.R           # Heatmap top 25 genera – L1 vs L3
-├── 06_heatmap_L2_L3.R           # Heatmap top 25 genera – L2 vs L3
-
+├── metadata_l1.tsv                  # L1 sample metadata (created manually)
+├── metadata_l23.tsv                 # L2/L3 sample metadata
 ├── scripts/
-│   ├── test_ncbi.py             # FASTQ downloader via Entrez API
-│   └── filter_pe_samples.py     # PE/LDPE/HDPE filter for validation
-
+│   ├── runme.sh                     # Master pipeline script (nf-core/ampliseq)
+│   ├── test_ncbi.py                 # FASTQ downloader via Entrez API
+│   ├── cleaning_data.R              # Step 4: filter + merge datasets
+│   └── analise_completa.R           # Steps 5–7: all downstream analyses
 └── importante/
-    ├── ancona_list.txt          # L2 SRA accessions
-    ├── napoles.txt              # L3 SRA accessions
-    └── denamark.txt             # L1 SRA accessions
+    ├── ancona_list.txt              # L2 SRA accessions
+    ├── napoles.txt                  # L3 SRA accessions
+    └── denamark.txt                 # L1 SRA accessions
+```
 
-Pipeline Overview
-Step 1 — Download data
+> **Note:** The `metadata_l1.tsv` file was created manually based on the experimental design described in Dodhia et al. (2023), as no machine-readable metadata was available from the SRA submission.
 
-FASTQ files are retrieved from the SRA using a custom Python script (Entrez API) and fasterq-dump.
-bash
+---
 
-bash NCBI.sh
+## Pipeline Overview
 
-Step 2 — Quality control
+### Step 1 — Download data
 
-Performed automatically by nf-core/ampliseq, which includes FastQC and MultiQC.
-Step 3 — ASV inference & taxonomy
+FASTQs downloaded from SRA using a custom Python script via the Entrez Direct API and `fasterq-dump`.
 
-nf-core/ampliseq is executed separately for L1 and L2/L3.
-bash
+```bash
+python3 scripts/test_ncbi.py importante/denamark.txt
+python3 scripts/test_ncbi.py importante/ancona_list.txt
+python3 scripts/test_ncbi.py importante/napoles.txt
+```
 
-# L2/L3 (PRJNA558771) — truncR = 180
-nextflow run nf-core/ampliseq -profile conda \
-  --input samplesheet_l23.tsv \
-  --outdir resultados_L2_L3 \
-  --FW_primer GTGYCAGCMGCCGCGGTAA \
-  --RV_primer GGACTACNVGGGTWTCTAAT
+### Step 2 — Quality control
 
-# L1 (PRJNA941828) — truncR = 170
-nextflow run nf-core/ampliseq -profile conda \
-  --input samplesheet_l1.tsv \
-  --outdir resultados_L1 \
-  --FW_primer GTGYCAGCMGCCGCGGTAA \
-  --RV_primer GGACTACNVGGGTWTCTAAT
+FastQC run on all raw reads, reports aggregated with MultiQC.
 
-DADA2 parameters
-Dataset	trunclenF	trunclenR	maxEE
-L1	260	170	3 / 3
-L2/L3	260	180	3 / 3
+```bash
+multiqc resultados_L1/fastqc/ resultados_L2_L3/fastqc/ -o multiqc_report/
+```
 
-Taxonomy assignment: SILVA 138.1 NR99
-Step 4 — Data cleaning
-bash
+### Step 3 — ASV inference & taxonomy
 
-Rscript cleaning.R
+```bash
+bash scripts/runme.sh
+```
 
-Filters applied:
+**DADA2 parameters:**
 
-    Sediment samples only (PE/PP/PS + control)
+| Dataset | trunclenF | trunclenR | maxEE |
+|---|---|---|---|
+| PRJNA941828 (L1) | 260 | 170 | 3 / 3 |
+| PRJNA558771 (L2/L3) | 260 | 180 | 3 / 3 |
 
-    Minimum 10,000 reads per sample
+- Primers: 515F (`GTGYCAGCMGCCGCGGTAA`) / 806R (`GGACTACNVGGGTWTCTAAT`)
+- Taxonomy: SILVA 138.1 NR99
+- Strategy: merging + direct joining
 
-    ASVs present ≥ 5 times in ≥ 10% of samples
+### Step 4 — Data cleaning
 
-    ASVs lacking phylum-level classification removed
+```bash
+Rscript scripts/cleaning_data.R resultados_cleaning
+```
 
-Post‑filtering summary
-Dataset	Samples	ASVs
-L1	8	16,306
-L2/L3	7	3,391
-Merged	15	19,697
-Step 5 — Downstream analyses
-bash
+Filters applied per dataset (independently):
 
-Rscript 01_pcoa.R
-Rscript 02_dbrda.R
-Rscript 05_phylum_barplot.R
-Rscript 06_heatmap_L1_L3.R
-Rscript 06_heatmap_L2_L3.R
+- Sediment samples only (PE/PP/PS + control)
+- Minimum 10 000 reads per sample
+- ASVs present >= 5 times in >= 10% of samples
+- ASVs without phylum-level classification removed
 
-Analyses performed:
+**Results after cleaning:**
 
-    PCoA (Bray–Curtis dissimilarity)
+| Dataset | Samples | ASVs |
+|---|---|---|
+| L1 | 8 | 16 306 |
+| L2/L3 | 7 | 3 391 |
+| Merged | 15 | 19 697 |
 
-    dbRDA (treatment + location)
+### Steps 5–7 — Downstream analyses
 
-    PERMANOVA (adonis2, 999 permutations) — R² = 0.332, p = 0.005
+```bash
+Rscript scripts/analise_completa.R resultados_cleaning resultados_analise
+```
 
-    Homogeneity of dispersion (betadisper)
+**Analyses performed:**
 
-    Community composition barplot (top 15 phyla)
+| Output file | Analysis |
+|---|---|
+| `01_PCoA_BrayCurtis.pdf/png` | PCoA — Bray-Curtis dissimilarity |
+| `02_dbRDA.pdf/png` | dbRDA — treatment + location |
+| `02_PERMANOVA.tsv` | PERMANOVA (adonis2, 999 permutations, seed 123) |
+| `05_phylum_barplot.pdf/png` | Community composition — top 15 phyla |
+| `06_heatmap_all.pdf` | Heatmap top 30 genera — all samples |
+| `06_heatmap_L1_vs_L3.pdf` | Heatmap top 30 genera — L1 vs L3 |
+| `06_heatmap_L2_vs_L3.pdf` | Heatmap top 30 genera — L2 vs L3 |
+| `ANCOMBC2_L1_vs_L3_LFC.pdf/png` | Differential abundance — L1 vs L3 |
+| `ANCOMBC2_L2_vs_L3_LFC.pdf/png` | Differential abundance — L2 vs L3 |
+| `ANCOMBC2_*_full.tsv` | Full ANCOMBC2 results tables |
 
-    Heatmaps of top 25 genera (L1 vs L3, L2 vs L3)
+**PERMANOVA result:** R² = 0.332, p = 0.005
 
-Requirements
-System
+---
 
-    Python 3
+## Requirements
 
-    Nextflow
+### System
 
-    nf-core/ampliseq (conda profile)
+| Tool | Version |
+|---|---|
+| Python | 3.9.23 |
+| R | 4.6.0 |
+| Nextflow | 26.04.3 |
+| nf-core/ampliseq | 2.11.0 |
+| MultiQC | 1.35 |
 
-    R ≥ 4.2
+### R packages
 
-R packages
-r
+```r
+# CRAN
+install.packages(c("vegan", "ggplot2", "dplyr", "tidyr", "pheatmap"))
 
-install.packages(c("vegan", "ggplot2", "dplyr", "tidyr",
-                   "reshape2", "pheatmap"))
+# Bioconductor
+BiocManager::install(c("ANCOMBC", "mia", "TreeSummarizedExperiment"))
+```
 
-Key Results
+| Package | Version |
+|---|---|
+| vegan | 2.7.5 |
+| ggplot2 | 4.0.3 |
+| pheatmap | 1.0.13 |
+| ANCOMBC | 2.14.0 |
+| mia | 1.3.2 |
+| TreeSummarizedExperiment | 2.20.0 |
 
-    Location significantly explains microbial community variation (PERMANOVA R² = 0.332, p = 0.005)
+---
 
-    L1 (Denmark) communities are clearly distinct from L2 (Ancona) and L3 (Naples)
+## Key Results
 
-    Pseudomonadota dominates sediment samples from L2 and L3
+- Location explains a significant portion of microbial community variation (PERMANOVA R² = 0.332, p = 0.005)
+- L1 (Denmark) communities are clearly distinct from L2 (Ancona) and L3 (Naples)
+- Key genera L1 vs L3: *Arcticiflavibacter*, *Dokdonia*, *Sulfitobacter* (enriched in L1); *Ilumatobacter*, *Anderseniella* (enriched in L3)
+- Key genera L2 vs L3: *Dokdonia*, *Ulvibacter*, *Maritimimonas*, *Sphingorhabdus* (enriched in L3)
 
-    Key genera identified:
-    Dokdonia, Sulfitobacter, Psychrobacter, Pseudoalteromonas, Cobetia
+---
 
-References
+## References
 
-    Ramakodi & Palanivishwanath (2024) — replicated study
-
-    Dodhia et al. (2023) — PRJNA941828
-
-    Basili et al. (2020) — PRJNA558771
-
-    Callahan et al. (2016) — DADA2
-
-    Quast et al. (2012) — SILVA
-
-    McMurdie & Holmes (2013) — phyloseq
+- Ramakodi & Palanivishwanath (2024) — original study replicated
+- Dodhia et al. (2023) — PRJNA941828
+- Basili et al. (2020) — PRJNA558771
+- Callahan et al. (2016) — DADA2
+- Quast et al. (2012) — SILVA database
+- Lin & Peddada (2020) — ANCOMBC
